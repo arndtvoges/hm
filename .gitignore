@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build output
+hm
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+
+# Bun
+bun.lock
+
+# Scratch
+tmp/
+
+# We don't want your LLM config
+CLAUDE.md
+.claude/
+.cursorrules
+.cursor/
+.github/copilot-instructions.md
+.windsurfrules
+.aider*
+codex.md
+.codex/
+AGENTS.md
+.openai/
