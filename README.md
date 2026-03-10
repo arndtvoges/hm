@@ -29,7 +29,7 @@ Safety measures are in place but they are not foolproof:
 ## Install
 
 ```bash
-brew install hm
+brew install arndtvoges/hm/hm
 ```
 
 Or build from source ([Bun](https://bun.sh) required):
