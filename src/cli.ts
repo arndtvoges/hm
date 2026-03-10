@@ -72,7 +72,7 @@ async function main() {
       process.stdout.write(`Re-run ${CYAN}${lastCommand}${RESET} to capture its output? (Y/n): `);
 
       const buf = Buffer.alloc(64);
-      const n = readSync(0, buf, 0, 64);
+      const n = readSync(0, buf, 0, 64, null);
       const answer = buf.toString("utf8", 0, n).trim().toLowerCase();
 
       if (answer === "" || answer === "y" || answer === "yes") {
