@@ -1,0 +1,135 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: darwin-arm64
+            bun-target: bun-darwin-arm64
+          - os: macos-13
+            target: darwin-x64
+            bun-target: bun-darwin-x64
+          - os: ubuntu-latest
+            target: linux-x64
+            bun-target: bun-linux-x64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+
+      - name: Build binary
+        run: bun build src/cli.ts --compile --target=${{ matrix.bun-target }} --outfile hm-${{ matrix.target }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hm-${{ matrix.target }}
+          path: hm-${{ matrix.target }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: artifacts/*
+
+  update-tap:
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Update Homebrew formula
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          VERSION="${TAG#v}"
+          REPO="arndtvoges/hm"
+          BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+
+          # Download binaries and compute SHA256 hashes
+          declare -A SHAS
+          for target in darwin-arm64 darwin-x64 linux-x64; do
+            url="${BASE_URL}/hm-${target}"
+            echo "Downloading ${url}..."
+            curl -fSL -o "hm-${target}" "${url}"
+            sha=$(sha256sum "hm-${target}" | cut -d' ' -f1)
+            SHAS["${target}"]="${sha}"
+            echo "${target}: ${sha}"
+          done
+
+          # Clone the tap repo
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/arndtvoges/homebrew-hm.git" tap
+          cd tap
+
+          # Write the updated formula
+          cat > Formula/hm.rb << RUBY
+          class Hm < Formula
+            desc "Translate natural language into shell commands using Claude AI"
+            homepage "https://github.com/arndtvoges/hm"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "${BASE_URL}/hm-darwin-arm64"
+                sha256 "${SHAS[darwin-arm64]}"
+              else
+                url "${BASE_URL}/hm-darwin-x64"
+                sha256 "${SHAS[darwin-x64]}"
+              end
+            end
+
+            on_linux do
+              url "${BASE_URL}/hm-linux-x64"
+              sha256 "${SHAS[linux-x64]}"
+            end
+
+            def install
+              binary = Dir.glob("hm-*").first || "hm"
+              bin.install binary => "hm"
+            end
+
+            test do
+              assert_match "hm", shell_output("#{bin}/hm --help")
+            end
+          end
+          RUBY
+
+          # Remove leading whitespace from heredoc indentation
+          sed -i 's/^          //' Formula/hm.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/hm.rb
+          git commit -m "Update hm to ${VERSION}"
+          git push
