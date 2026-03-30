@@ -1,5 +1,5 @@
 import * as readline from "node:readline/promises";
-import { DIM, RESET, CLEAR_LINE } from "./color";
+import { CLEAR_LINE, DIM, RESET } from "./color";
 
 export interface SelectorOption {
   label: string;

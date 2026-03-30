@@ -1,11 +1,13 @@
-import { run, getHistoryPath, parseHistoryLine } from "./shell";
+import { getHistoryPath, parseHistoryLine, run } from "./shell";
 
 const MAX_LINES = 200;
 const MAX_LINE_LENGTH = 500;
 
 function truncate(raw: string): string {
   const lines = raw.split("\n").slice(-MAX_LINES);
-  return lines.map((l) => (l.length > MAX_LINE_LENGTH ? l.slice(0, MAX_LINE_LENGTH) + "…" : l)).join("\n");
+  return lines
+    .map((l) => (l.length > MAX_LINE_LENGTH ? `${l.slice(0, MAX_LINE_LENGTH)}…` : l))
+    .join("\n");
 }
 
 async function runAppleScript(script: string): Promise<string | null> {
@@ -65,7 +67,8 @@ export async function getLastCommand(): Promise<string | null> {
     const raw = await run(["tail", "-n", "10", historyPath]);
     if (!raw) return null;
 
-    const lines = raw.split("\n")
+    const lines = raw
+      .split("\n")
       .map(parseHistoryLine)
       .filter((cmd) => cmd.length > 0 && cmd !== "hm");
 

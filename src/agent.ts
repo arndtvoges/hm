@@ -1,12 +1,14 @@
-import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { PermissionResult } from "@anthropic-ai/claude-agent-sdk";
-import { gatherContext, type GatherContextOptions } from "./context";
-import { selector } from "./selector";
-import type { SelectorOption } from "./selector";
-import { doctorSpinner, agentSpinner } from "./spinner";
+import { query } from "@anthropic-ai/claude-agent-sdk";
+import { runAgentModeOpenAI } from "./agent-openai";
 import { DIM, RESET } from "./color";
+import { type GatherContextOptions, gatherContext } from "./context";
+import type { Provider } from "./provider";
+import type { SelectorOption } from "./selector";
+import { selector } from "./selector";
+import { agentSpinner, doctorSpinner } from "./spinner";
 
-function buildAgentPrompt(context: string): string {
+export function buildAgentPrompt(context: string): string {
   return `You are a devops debugging agent. Your job is to diagnose and fix environment, deployment, and infrastructure issues.
 
 You have access to the user's system context, shell history, and environment (provided below).
@@ -44,8 +46,10 @@ When you believe the issue is resolved, say "Looks like it's fixed" and stop.
 ${context}`;
 }
 
-function buildDoctorPrompt(context: string, hasTerminalOutput: boolean): string {
-  const rerunInstruction = hasTerminalOutput ? "" : `
+export function buildDoctorPrompt(context: string, hasTerminalOutput: boolean): string {
+  const rerunInstruction = hasTerminalOutput
+    ? ""
+    : `
 **No terminal scrollback is available.** You have the user's last command from shell history. Re-run it yourself to see the output — this is a read-only diagnostic step. If the command could modify state or is potentially dangerous, propose it via AskUserQuestion first. Otherwise, just run it.
 
 `;
@@ -80,9 +84,10 @@ ${context}`;
 }
 
 function buildSystemPrompt(context: string, doctor?: boolean, hasTerminalOutput?: boolean): string {
-  return doctor ? buildDoctorPrompt(context, hasTerminalOutput ?? false) : buildAgentPrompt(context);
+  return doctor
+    ? buildDoctorPrompt(context, hasTerminalOutput ?? false)
+    : buildAgentPrompt(context);
 }
-
 
 export interface AgentModeOptions {
   doctor?: boolean;
@@ -90,7 +95,16 @@ export interface AgentModeOptions {
   lastCommand?: string | null;
 }
 
-export async function runAgentMode(prompt: string, apiKey: string, options?: AgentModeOptions): Promise<void> {
+export async function runAgentMode(
+  prompt: string,
+  apiKey: string,
+  options?: AgentModeOptions,
+  provider: Provider = "anthropic",
+): Promise<void> {
+  if (provider === "openai") {
+    return runAgentModeOpenAI(prompt, apiKey, options);
+  }
+
   // The agent SDK reads the API key from process.env.ANTHROPIC_API_KEY
   process.env.ANTHROPIC_API_KEY = apiKey;
 
@@ -121,11 +135,13 @@ export async function runAgentMode(prompt: string, apiKey: string, options?: Age
   const APPROVAL_LABELS = new Set(["run these steps", "run fix"]);
 
   const agentQuery = query({
-    prompt: prompt || (isDoctor
-      ? (options?.terminalOutput
-        ? "Look at my recent terminal output. What went wrong? Diagnose the issue and help me fix it."
-        : "I don't have terminal scrollback, but look at my shell history and system context. Figure out what went wrong with my last command and help me fix it.")
-      : "Look at my shell history and system context. Figure out what I'm struggling with and help me fix it."),
+    prompt:
+      prompt ||
+      (isDoctor
+        ? options?.terminalOutput
+          ? "Look at my recent terminal output. What went wrong? Diagnose the issue and help me fix it."
+          : "I don't have terminal scrollback, but look at my shell history and system context. Figure out what went wrong with my last command and help me fix it."
+        : "Look at my shell history and system context. Figure out what I'm struggling with and help me fix it."),
     options: {
       model: "claude-opus-4-6",
       systemPrompt,
@@ -207,8 +223,10 @@ export async function runAgentMode(prompt: string, apiKey: string, options?: Age
           // but only if the command looks read-only (no pipes, redirects, writes)
           if (diagnosticRunAllowed) {
             diagnosticRunAllowed = false;
-            const cmd = typeof (input as Record<string, unknown>).command === "string"
-              ? (input as Record<string, unknown>).command as string : "";
+            const cmd =
+              typeof (input as Record<string, unknown>).command === "string"
+                ? ((input as Record<string, unknown>).command as string)
+                : "";
             const looksDestructive = /\b(rm|sudo|kill|mkfs|dd)\b|>\s|>>/.test(cmd);
             if (!looksDestructive) {
               return { behavior: "allow", updatedInput: input };
@@ -216,7 +234,8 @@ export async function runAgentMode(prompt: string, apiKey: string, options?: Age
           }
           return {
             behavior: "deny",
-            message: "Please propose this command to the user first using AskUserQuestion before running it.",
+            message:
+              "Please propose this command to the user first using AskUserQuestion before running it.",
           };
         }
 
@@ -235,21 +254,20 @@ export async function runAgentMode(prompt: string, apiKey: string, options?: Age
       }
 
       if (message.type === "assistant") {
-        if (stopSpinner) { stopSpinner(); stopSpinner = null; }
+        if (stopSpinner) {
+          stopSpinner();
+          stopSpinner = null;
+        }
         const content = message.message?.content;
         if (Array.isArray(content)) {
           for (const block of content) {
-            if (
-              typeof block === "object" &&
-              block !== null &&
-              "type" in block
-            ) {
+            if (typeof block === "object" && block !== null && "type" in block) {
               if (block.type === "text" && "text" in block && typeof block.text === "string") {
-                process.stdout.write(block.text + "\n");
+                process.stdout.write(`${block.text}\n`);
               }
               if (block.type === "tool_use" && "name" in block && typeof block.name === "string") {
                 if (block.name !== "AskUserQuestion") {
-                  const input = "input" in block ? block.input as Record<string, unknown> : {};
+                  const input = "input" in block ? (block.input as Record<string, unknown>) : {};
                   let detail = "";
                   if (block.name === "Bash" && typeof input.command === "string") {
                     detail = ` — ${input.command}`;
@@ -274,7 +292,9 @@ export async function runAgentMode(prompt: string, apiKey: string, options?: Age
           const errMsg = message as Record<string, unknown>;
           if (Array.isArray(errMsg.errors) && errMsg.errors.length > 0) {
             process.stderr.write(`\nAgent error: ${errMsg.errors.join(", ")}\n`);
-            process.stderr.write(`Try running again. If this persists, check your API key or internet connection.\n`);
+            process.stderr.write(
+              `Try running again. If this persists, check your API key or internet connection.\n`,
+            );
           }
         }
         break;
@@ -283,6 +303,8 @@ export async function runAgentMode(prompt: string, apiKey: string, options?: Age
   } catch (err: unknown) {
     const errMessage = err instanceof Error ? err.message : String(err);
     process.stderr.write(`\nAgent error: ${errMessage}\n`);
-    process.stderr.write(`Try running again. If this persists, check your API key or internet connection.\n`);
+    process.stderr.write(
+      `Try running again. If this persists, check your API key or internet connection.\n`,
+    );
   }
 }
