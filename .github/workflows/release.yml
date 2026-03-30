@@ -94,7 +94,7 @@ jobs:
           # Write the updated formula
           cat > Formula/hm.rb << RUBY
           class Hm < Formula
-            desc "Translate natural language into shell commands using Claude AI"
+            desc "Translate natural language into shell commands using AI"
             homepage "https://github.com/arndtvoges/hm"
             version "${VERSION}"
             license "MIT"
