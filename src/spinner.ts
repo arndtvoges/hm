@@ -1,4 +1,4 @@
-import { DIM, RESET, ORANGE, CLEAR_LINE } from "./color";
+import { CLEAR_LINE, DIM, ORANGE, RESET } from "./color";
 
 const brailleFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const circleFrames = ["○", "◔", "◑", "◕", "●"];

@@ -2,43 +2,21 @@ import { run } from "./shell";
 
 type Platform = "darwin" | "linux";
 
-export async function getSecret(
-  service: string,
-  account: string,
-): Promise<string | null> {
+export async function getSecret(service: string, account: string): Promise<string | null> {
   const platform = process.platform as Platform;
 
   if (platform === "darwin") {
-    return run([
-      "security",
-      "find-generic-password",
-      "-s",
-      service,
-      "-a",
-      account,
-      "-w",
-    ]);
+    return run(["security", "find-generic-password", "-s", service, "-a", account, "-w"]);
   }
 
   if (platform === "linux") {
-    return run([
-      "secret-tool",
-      "lookup",
-      "service",
-      service,
-      "account",
-      account,
-    ]);
+    return run(["secret-tool", "lookup", "service", service, "account", account]);
   }
 
   return null;
 }
 
-export async function setSecret(
-  service: string,
-  account: string,
-  value: string,
-): Promise<void> {
+export async function setSecret(service: string, account: string, value: string): Promise<void> {
   const platform = process.platform as Platform;
 
   if (platform === "darwin") {
@@ -62,15 +40,7 @@ export async function setSecret(
   if (platform === "linux") {
     // secret-tool store reads the secret from stdin
     const proc = Bun.spawn(
-      [
-        "secret-tool",
-        "store",
-        `--label=${service}`,
-        "service",
-        service,
-        "account",
-        account,
-      ],
+      ["secret-tool", "store", `--label=${service}`, "service", service, "account", account],
       { stdin: "pipe", stdout: "pipe", stderr: "pipe" },
     );
     proc.stdin.write(value);
@@ -85,21 +55,11 @@ export async function setSecret(
   throw new Error(`Unsupported platform: ${process.platform}`);
 }
 
-export async function deleteSecret(
-  service: string,
-  account: string,
-): Promise<void> {
+export async function deleteSecret(service: string, account: string): Promise<void> {
   const platform = process.platform as Platform;
 
   if (platform === "darwin") {
-    const result = await run([
-      "security",
-      "delete-generic-password",
-      "-s",
-      service,
-      "-a",
-      account,
-    ]);
+    const result = await run(["security", "delete-generic-password", "-s", service, "-a", account]);
     if (result === null) {
       throw new Error("Failed to delete secret from macOS Keychain");
     }
@@ -107,14 +67,7 @@ export async function deleteSecret(
   }
 
   if (platform === "linux") {
-    const result = await run([
-      "secret-tool",
-      "clear",
-      "service",
-      service,
-      "account",
-      account,
-    ]);
+    const result = await run(["secret-tool", "clear", "service", service, "account", account]);
     if (result === null) {
       throw new Error("Failed to delete secret from system keyring");
     }

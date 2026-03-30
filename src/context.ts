@@ -1,4 +1,4 @@
-import { run, getHistoryPath, parseHistoryLine } from "./shell";
+import { getHistoryPath, parseHistoryLine, run } from "./shell";
 
 const SAFE_ENV_VARS = new Set([
   "PATH",
@@ -65,10 +65,7 @@ async function getSystemInfo(): Promise<string> {
   const arch = process.arch;
   const shell = process.env.SHELL || "unknown";
   const cwd = process.cwd();
-  return section(
-    "System",
-    `OS: ${os}\nArch: ${arch}\nShell: ${shell}\nCWD: ${cwd}`,
-  );
+  return section("System", `OS: ${os}\nArch: ${arch}\nShell: ${shell}\nCWD: ${cwd}`);
 }
 
 async function getGitInfo(): Promise<string | null> {
@@ -110,12 +107,7 @@ async function getListeningPorts(): Promise<string | null> {
 }
 
 async function getDockerContainers(): Promise<string | null> {
-  const raw = await run([
-    "docker",
-    "ps",
-    "--format",
-    "{{.Names}}\t{{.Status}}\t{{.Ports}}",
-  ]);
+  const raw = await run(["docker", "ps", "--format", "{{.Names}}\t{{.Status}}\t{{.Ports}}"]);
   if (!raw) return null;
   return section("Docker Containers", raw);
 }
@@ -177,16 +169,15 @@ export interface GatherContextOptions {
 export async function gatherContext(options?: GatherContextOptions): Promise<string> {
   const historyCount = options?.doctor ? 50 : 20;
 
-  const [system, git, processes, ports, docker, dirListing, history] =
-    await Promise.all([
-      getSystemInfo(),
-      getGitInfo(),
-      getProcesses(),
-      getListeningPorts(),
-      getDockerContainers(),
-      getDirectoryListing(),
-      getShellHistory(historyCount),
-    ]);
+  const [system, git, processes, ports, docker, dirListing, history] = await Promise.all([
+    getSystemInfo(),
+    getGitInfo(),
+    getProcesses(),
+    getListeningPorts(),
+    getDockerContainers(),
+    getDirectoryListing(),
+    getShellHistory(historyCount),
+  ]);
 
   const env = getEnvironmentVariables();
 

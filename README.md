@@ -2,19 +2,25 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Natural language shell commands. Explain what you want to execute and it generates the right command and runs it.
+Natural language shell commands. Say what you want and `hm` figures out the command, shows it to you, and runs it.
+
+```bash
+$ hm find all TODO comments in my source files
+# Search for TODO comments in common source files recursively
+# $ grep -rn 'TODO' --include='*.ts' --include='*.js' --include='*.py' .
+```
 
 <p align="center">
   <img src="demo.gif" alt="hm demo" width="600">
 </p>
 
-`hm` sends your prompt to Claude, gets back a shell command, and runs it.
-
-Requires an Anthropic API key. Works on macOS and Linux.
+## Installation
 
 ```bash
 brew install arndtvoges/hm/hm
 ```
+
+On first run, `hm` asks for your API key and saves it to your system keychain. You'll need a key from [Anthropic](https://console.anthropic.com/settings/keys) or [OpenAI](https://platform.openai.com/api-keys).
 
 ## Disclaimer
 
@@ -28,31 +34,19 @@ Safety measures are in place but they are not foolproof:
 - Agent mode requires your approval before running any command.
 - Dry mode (`.`) copies to clipboard without executing.
 
-**In agent mode**, `hm` can read files on your system and send their contents to the Anthropic API. Shell history is also sent for context. Do not use agent or doctor mode in directories containing secrets you don't want sent to a third-party API.
-
-## Build from source
-
-[Bun](https://bun.sh) required:
-
-```bash
-git clone https://github.com/arndtvoges/hm.git
-cd hm
-bun install
-bun run build
-cp hm /usr/local/bin/hm
-```
-
-## Setup
-
-On first run, `hm` will ask for your Anthropic API key and store it in your system keyring (macOS Keychain or Linux secret-tool).
-
-You can also set `ANTHROPIC_API_KEY` as an environment variable instead.
+**In agent mode**, `hm` can read files on your system and send their contents to the API. Shell history is also sent for context. Do not use agent or doctor mode in directories containing secrets you don't want sent to a third-party API.
 
 ## Usage
 
 ```bash
 hm list all files including hidden ones
+```
+
+```bash
 hm show disk usage sorted by size
+```
+
+```bash
 hm kill whatever is running on port 3000
 ```
 
@@ -83,13 +77,35 @@ hm .. why is my docker build failing
 hm .. debug the test failures in src/
 ```
 
-### Other
+## Providers
 
-Reset your API key:
+`hm` works with Anthropic (Claude) and OpenAI. On first run you pick one — that choice is saved as your default.
+
+| | Command mode | Agent / Doctor mode |
+|---|---|---|
+| Anthropic | claude-sonnet-4-6 | claude-opus-4-6 |
+| OpenAI | gpt-5.4-mini | gpt-5.4 |
+
+Switch your default provider:
+
+```bash
+hm --set-provider openai
+hm --set-provider anthropic
+```
+
+One-time override (doesn't change default):
+
+```bash
+hm --provider openai show my docker containers
+```
+
+Reset stored API key(s):
 
 ```bash
 hm --reset-key
 ```
+
+Environment variables (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`) override the keychain when set.
 
 ## Platform support
 
@@ -102,21 +118,45 @@ hm --reset-key
 
 WSL works via Linux support. Native Windows is not supported.
 
-## Development
+## Build from source
 
-Requires [Bun](https://bun.sh) >= 1.1.0.
+[Bun](https://bun.sh) >= 1.1.0 required.
+
+```bash
+git clone https://github.com/arndtvoges/hm.git
+cd hm
+bun install
+bun run build
+cp hm /usr/local/bin/hm
+```
+
+## Development
 
 ```bash
 bun install
-bun run src/cli.ts "your prompt here"
+bun run src/cli.ts "your prompt here"   # run from source
+bun run build                            # compile binary
 ```
 
-Build standalone binary:
+Tests require both API keys in `.env.test.local`:
 
 ```bash
-bun run build
+bun test          # full suite (76 tests, ~60s)
+bun run test:unit # unit tests only (no API calls)
 ```
 
+Git hooks are set up via Lefthook:
+
+- **Pre-commit**: typecheck + lint
+- **Pre-push**: full test suite
+
+Lint and format (via Biome):
+
+```bash
+bun run lint       # check
+bun run lint:fix   # auto-fix
+bun run format     # format all files
+```
 
 ## License
 
